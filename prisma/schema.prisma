@@ -1,0 +1,43 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model Student {
+  id          Int       @id @default(autoincrement())
+  name        String
+  contact     String
+  email       String?
+  joiningDate DateTime
+  monthlyFee  Int
+  status      String    @default("Active") // Active | Inactive | Paused
+  nextDueDate DateTime?
+  notes       String?
+  createdAt   DateTime  @default(now())
+  payments    Payment[]
+  pauses      Pause[]
+}
+
+model Pause {
+  id        Int      @id @default(autoincrement())
+  studentId Int
+  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  startDate DateTime
+  endDate   DateTime
+  resumed   Boolean  @default(false) // flips true once auto/manual resume logic has run, so it only shifts the due date once
+  createdAt DateTime @default(now())
+}
+
+model Payment {
+  id            Int      @id @default(autoincrement())
+  studentId     Int
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  amountPaid    Int
+  paymentDate   DateTime
+  monthsCovered Int      @default(1)
+  createdAt     DateTime @default(now())
+}
