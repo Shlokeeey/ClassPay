@@ -1,7 +1,36 @@
-export function computeNextDueDate(paymentDate: Date, monthsCovered: number): Date {
-  const due = new Date(paymentDate);
-  due.setDate(due.getDate() + monthsCovered * 30);
-  return due;
+// --- Scheduling: joining-date-anchored, per your rule ---
+// The due date is ALWAYS derived from joiningDate + totalMonthsPaid + any
+// institute-wide holiday offset. Nothing else — not payment date, not
+// individual circumstances — can move it. This avoids any drift too: it's
+// recalculated fresh every time from the one fixed anchor (joiningDate),
+// rather than incrementally shifted off itself.
+
+// Adds calendar months to a date, clamping to the last day of the target
+// month when needed (e.g. Jan 31 + 1 month = Feb 28/29, not Mar 3).
+export function addMonthsClamped(date: Date | string, months: number): Date {
+  const d = new Date(date);
+  const totalMonthIndex = d.getMonth() + months;
+  const targetYear = d.getFullYear() + Math.floor(totalMonthIndex / 12);
+  const targetMonth = ((totalMonthIndex % 12) + 12) % 12;
+  const daysInTargetMonth = new Date(targetYear, targetMonth + 1, 0).getDate();
+  const day = Math.min(d.getDate(), daysInTargetMonth);
+  return new Date(targetYear, targetMonth, day);
+}
+
+export function addDaysToDate(date: Date | string, days: number): Date {
+  const d = new Date(date);
+  d.setDate(d.getDate() + days);
+  return d;
+}
+
+// The one function that decides a student's due date, anywhere in the app.
+export function computeScheduleDueDate(
+  joiningDate: Date | string,
+  totalMonthsPaid: number,
+  holidayOffsetDays: number
+): Date {
+  const base = addMonthsClamped(joiningDate, totalMonthsPaid + 1);
+  return addDaysToDate(base, holidayOffsetDays);
 }
 
 export function formatDate(date: Date | string | null | undefined): string {
@@ -38,6 +67,17 @@ export function outstandingAmount(
   return monthsOverdueEstimate(nextDueDate) * monthlyFee;
 }
 
+// The REAL pending amount: the schedule-based estimate, corrected by the exact
+// running balance from any shortfalls/overpayments the month-rounding
+// approximation would otherwise hide. Positive = owed, negative = credit.
+export function netPendingAmount(
+  nextDueDate: Date | string | null | undefined,
+  monthlyFee: number,
+  balanceAdjustment: number
+): number {
+  return outstandingAmount(nextDueDate, monthlyFee) + balanceAdjustment;
+}
+
 export function dueBadge(nextDueDate: Date | string | null | undefined): {
   label: string;
   color: string;
@@ -51,7 +91,7 @@ export function dueBadge(nextDueDate: Date | string | null | undefined): {
 
 // --- V2: Reminder Engine ---
 // Classifies a student for the "needs attention" queue.
-// Paused / Inactive students are always excluded — reminders only apply to Active students.
+// Inactive students are always excluded — reminders only apply to Active students.
 export type ReminderLevel = "escalate" | "overdue" | "upcoming";
 
 export interface ReminderInfo {
@@ -65,7 +105,7 @@ export function getReminderInfo(student: {
   status: string;
   nextDueDate: Date | string | null;
 }): ReminderInfo | null {
-  if (student.status !== "Active") return null; // respects Paused/Inactive
+  if (student.status !== "Active") return null; // Inactive students excluded
   const daysLeft = daysUntil(student.nextDueDate);
   if (daysLeft === null) return null;
 

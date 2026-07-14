@@ -11,7 +11,8 @@ interface StudentEditable {
   joiningDate: string; // ISO
   monthlyFee: number;
   notes: string | null;
-  nextDueDate: string | null; // ISO
+  totalMonthsPaid: number;
+  balanceAdjustment: number;
 }
 
 export default function EditStudentButton({ student }: { student: StudentEditable }) {
@@ -32,7 +33,8 @@ export default function EditStudentButton({ student }: { student: StudentEditabl
       joiningDate: form.get("joiningDate"),
       monthlyFee: Number(form.get("monthlyFee")),
       notes: form.get("notes") || null,
-      nextDueDate: form.get("nextDueDate") || null,
+      totalMonthsPaid: Number(form.get("totalMonthsPaid")),
+      balanceAdjustment: Number(form.get("balanceAdjustment")),
     };
 
     const res = await fetch(`/api/students/${student.id}`, {
@@ -84,6 +86,10 @@ export default function EditStudentButton({ student }: { student: StudentEditabl
             defaultValue={student.joiningDate.slice(0, 10)}
             required
           />
+          <p className="text-xs text-gray-400 mt-1">
+            This is the ONLY anchor for the billing cycle — the due date always lands on this same
+            day each month, regardless of anything else.
+          </p>
         </div>
         <div>
           <label className="label">Monthly Fee (₹)</label>
@@ -97,16 +103,32 @@ export default function EditStudentButton({ student }: { student: StudentEditabl
           />
         </div>
         <div>
-          <label className="label">Next Due Date</label>
+          <label className="label">Total Months Paid</label>
           <input
             className="input"
-            name="nextDueDate"
-            type="date"
-            defaultValue={student.nextDueDate ? student.nextDueDate.slice(0, 10) : ""}
+            name="totalMonthsPaid"
+            type="number"
+            min="0"
+            defaultValue={student.totalMonthsPaid}
           />
           <p className="text-xs text-gray-400 mt-1">
             Only correct this manually if the schedule looks wrong (e.g. an older record from
-            before the due-date fix). Normally this updates automatically from payments.
+            before a fix). The due date recalculates automatically from joining date + this number
+            of months whenever you save.
+          </p>
+        </div>
+        <div>
+          <label className="label">Balance Adjustment (₹)</label>
+          <input
+            className="input"
+            name="balanceAdjustment"
+            type="number"
+            defaultValue={student.balanceAdjustment}
+          />
+          <p className="text-xs text-gray-400 mt-1">
+            Positive = still owed beyond the schedule (e.g. an unrecorded shortfall). Negative =
+            credit from an overpayment. This is added on top of the schedule-based pending amount
+            everywhere it's shown — only edit this directly to correct a mistake.
           </p>
         </div>
         <div>

@@ -1,9 +1,14 @@
 import { prisma } from "@/lib/prisma";
-import { formatCurrency, formatDate, dueBadge, getReminderInfo, outstandingAmount, monthsOverdueEstimate } from "@/lib/utils";
-import { resolveExpiredPauses } from "@/lib/pause";
+import {
+  formatCurrency,
+  formatDate,
+  dueBadge,
+  getReminderInfo,
+  netPendingAmount,
+  monthsOverdueEstimate,
+} from "@/lib/utils";
 import AddPaymentForm from "@/components/AddPaymentForm";
 import StudentActions from "@/components/StudentActions";
-import { PauseButton, ResumeNowButton, CancelPauseButton } from "@/components/PauseControls";
 import StudentCalendar from "@/components/StudentCalendar";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import EditStudentButton from "@/components/EditStudentButton";
@@ -12,25 +17,22 @@ import { notFound } from "next/navigation";
 export const dynamic = "force-dynamic";
 
 export default async function StudentDetailPage({ params }: { params: { id: string } }) {
-  await resolveExpiredPauses(); // V3: auto-resume anyone whose pause window has passed
-
   const id = Number(params.id);
   const student = await prisma.student.findUnique({
     where: { id },
     include: {
       payments: { orderBy: { paymentDate: "desc" } },
-      pauses: { orderBy: { startDate: "desc" } },
     },
   });
 
   if (!student) notFound();
 
-  const activePause = student.pauses.find((p) => !p.resumed);
+  const holidays = await prisma.holiday.findMany();
 
   const badge = dueBadge(student.nextDueDate);
   const totalPaid = student.payments.reduce((sum, p) => sum + p.amountPaid, 0);
   const owedMonths = monthsOverdueEstimate(student.nextDueDate);
-  const owedAmount = outstandingAmount(student.nextDueDate, student.monthlyFee);
+  const owedAmount = netPendingAmount(student.nextDueDate, student.monthlyFee, student.balanceAdjustment);
 
   return (
     <div className="space-y-6">
@@ -50,12 +52,21 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           <div className="mt-4 rounded-lg bg-red-50 border border-red-100 px-4 py-3">
             <p className="text-sm text-red-700">
               <span className="font-bold text-lg">{formatCurrency(owedAmount)}</span> pending
-              (~{owedMonths} month{owedMonths > 1 ? "s" : ""} overdue at {formatCurrency(student.monthlyFee)}/mo)
+              (~{owedMonths} month{owedMonths > 1 ? "s" : ""} overdue at {formatCurrency(student.monthlyFee)}/mo
+              {student.balanceAdjustment !== 0 ? ", including past shortfalls/credit" : ""})
+            </p>
+          </div>
+        )}
+        {owedAmount <= 0 && student.balanceAdjustment < 0 && (
+          <div className="mt-4 rounded-lg bg-green-50 border border-green-100 px-4 py-3">
+            <p className="text-sm text-green-700">
+              <span className="font-bold text-lg">{formatCurrency(Math.abs(student.balanceAdjustment))}</span>{" "}
+              in credit from a past overpayment.
             </p>
           </div>
         )}
 
-        <div className="grid grid-cols-3 gap-4 mt-4 text-sm">
+        <div className="grid grid-cols-2 sm:grid-cols-3 gap-4 mt-4 text-sm">
           <div>
             <p className="text-gray-500">Monthly Fee</p>
             <p className="font-medium">{formatCurrency(student.monthlyFee)}</p>
@@ -73,8 +84,8 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
             <p className="font-medium">{formatCurrency(totalPaid)}</p>
           </div>
           <div>
-            <p className="text-gray-500">Payments Made</p>
-            <p className="font-medium">{student.payments.length}</p>
+            <p className="text-gray-500">Months Paid</p>
+            <p className="font-medium">{student.totalMonthsPaid}</p>
           </div>
           <div>
             <p className="text-gray-500">Next Due Date</p>
@@ -89,15 +100,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           </div>
         )}
 
-        {activePause && (
-          <div className="mt-4 rounded-lg bg-gray-100 px-3 py-2 text-sm text-gray-700">
-            ⏸️ Paused from {formatDate(activePause.startDate)} to {formatDate(activePause.endDate)}.
-            Reminders are off until then. Click the grey blocks on the calendar below to edit these
-            dates.
-          </div>
-        )}
-
-        <div className="mt-4 flex flex-wrap gap-2">
+        <div className="mt-4 flex flex-col sm:flex-row flex-wrap gap-2">
           <EditStudentButton
             student={{
               id: student.id,
@@ -107,18 +110,11 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
               joiningDate: student.joiningDate.toISOString(),
               monthlyFee: student.monthlyFee,
               notes: student.notes,
-              nextDueDate: student.nextDueDate ? student.nextDueDate.toISOString() : null,
+              totalMonthsPaid: student.totalMonthsPaid,
+              balanceAdjustment: student.balanceAdjustment,
             }}
           />
           <StudentActions studentId={student.id} currentStatus={student.status} />
-          {student.status === "Paused" ? (
-            <>
-              <ResumeNowButton studentId={student.id} />
-              <CancelPauseButton studentId={student.id} />
-            </>
-          ) : (
-            <PauseButton studentId={student.id} />
-          )}
         </div>
 
         <div className="mt-3">
@@ -128,6 +124,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
               contact: student.contact,
               monthlyFee: student.monthlyFee,
               nextDueDate: student.nextDueDate ? student.nextDueDate.toISOString() : null,
+              balanceAdjustment: student.balanceAdjustment,
             }}
             type={getReminderInfo(student)?.level ?? "upcoming"}
           />
@@ -139,11 +136,10 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
           date: p.paymentDate.toISOString(),
           monthsCovered: p.monthsCovered,
         }))}
-        pauses={student.pauses.map((p) => ({
-          id: p.id,
-          start: p.startDate.toISOString(),
-          end: p.endDate.toISOString(),
-          resumed: p.resumed,
+        holidays={holidays.map((h) => ({
+          start: h.startDate.toISOString(),
+          end: h.endDate.toISOString(),
+          note: h.note,
         }))}
         nextDueDate={student.nextDueDate ? student.nextDueDate.toISOString() : null}
       />
@@ -161,6 +157,7 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
         {student.payments.length === 0 ? (
           <p className="text-sm text-gray-400">No payments recorded yet.</p>
         ) : (
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="text-gray-500 text-left border-b border-gray-100">
               <tr>
@@ -179,32 +176,9 @@ export default async function StudentDetailPage({ params }: { params: { id: stri
               ))}
             </tbody>
           </table>
+          </div>
         )}
       </div>
-
-      {student.pauses.length > 0 && (
-        <div className="card">
-          <h2 className="font-medium mb-3">Pause History</h2>
-          <table className="w-full text-sm">
-            <thead className="text-gray-500 text-left border-b border-gray-100">
-              <tr>
-                <th className="py-2">Start</th>
-                <th className="py-2">End</th>
-                <th className="py-2">Status</th>
-              </tr>
-            </thead>
-            <tbody>
-              {student.pauses.map((p) => (
-                <tr key={p.id} className="border-b border-gray-50">
-                  <td className="py-2">{formatDate(p.startDate)}</td>
-                  <td className="py-2">{formatDate(p.endDate)}</td>
-                  <td className="py-2">{p.resumed ? "Resumed" : "Active"}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
     </div>
   );
 }

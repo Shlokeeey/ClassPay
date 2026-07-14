@@ -9,19 +9,18 @@ interface DueEntry {
   date: string;
   overdue: boolean;
 }
-interface PauseEntry {
-  studentId: number;
-  name: string;
+interface HolidayRange {
   start: string;
   end: string;
+  note: string | null;
 }
 
 export default function GlobalCalendar({
   dueEntries,
-  pauseEntries,
+  holidays,
 }: {
   dueEntries: DueEntry[];
-  pauseEntries: PauseEntry[];
+  holidays: HolidayRange[];
 }) {
   const [cursor, setCursor] = useState(() => {
     const d = new Date();
@@ -34,23 +33,23 @@ export default function GlobalCalendar({
   const daysInMonth = new Date(year, month + 1, 0).getDate();
   const startWeekday = firstDay.getDay();
 
+  function sameDay(a: Date, b: Date) {
+    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+  }
+
   function entriesForDay(day: number) {
     const cellDate = new Date(year, month, day);
     cellDate.setHours(0, 0, 0, 0);
 
     const dues = dueEntries.filter((d) => sameDay(new Date(d.date), cellDate));
-    const pauses = pauseEntries.filter((p) => {
-      const s = new Date(p.start);
-      const e = new Date(p.end);
+    const holiday = holidays.find((h) => {
+      const s = new Date(h.start);
+      const e = new Date(h.end);
       s.setHours(0, 0, 0, 0);
       e.setHours(0, 0, 0, 0);
       return cellDate >= s && cellDate <= e;
     });
-    return { dues, pauses };
-  }
-
-  function sameDay(a: Date, b: Date) {
-    return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate();
+    return { dues, holiday };
   }
 
   const cells: (number | null)[] = [
@@ -81,10 +80,20 @@ export default function GlobalCalendar({
       <div className="grid grid-cols-7 gap-1">
         {cells.map((day, i) => {
           if (day === null) return <div key={i} className="min-h-[70px]" />;
-          const { dues, pauses } = entriesForDay(day);
+          const { dues, holiday } = entriesForDay(day);
           return (
-            <div key={i} className="min-h-[70px] rounded-md border border-gray-100 p-1 text-xs">
+            <div
+              key={i}
+              className={`min-h-[70px] rounded-md border border-gray-100 p-1 text-xs ${
+                holiday ? "bg-gray-100" : ""
+              }`}
+            >
               <div className="text-gray-400">{day}</div>
+              {holiday && (
+                <p className="text-gray-500 truncate" title={holiday.note ?? "Institute Holiday"}>
+                  ⚪ {holiday.note || "Holiday"}
+                </p>
+              )}
               <div className="space-y-0.5 mt-1">
                 {dues.slice(0, 2).map((d) => (
                   <Link
@@ -97,18 +106,7 @@ export default function GlobalCalendar({
                     {d.name}
                   </Link>
                 ))}
-                {pauses.slice(0, 1).map((p) => (
-                  <Link
-                    key={p.studentId}
-                    href={`/students/${p.studentId}`}
-                    className="block truncate rounded bg-gray-200 px-1 text-gray-600"
-                  >
-                    ⏸ {p.name}
-                  </Link>
-                ))}
-                {dues.length + pauses.length > 3 && (
-                  <p className="text-gray-400">+{dues.length + pauses.length - 3} more</p>
-                )}
+                {dues.length > 2 && <p className="text-gray-400">+{dues.length - 2} more</p>}
               </div>
             </div>
           );
@@ -118,7 +116,7 @@ export default function GlobalCalendar({
       <div className="flex flex-wrap gap-3 mt-3 text-xs text-gray-500">
         <span>🟡 Due soon</span>
         <span>🔴 Overdue</span>
-        <span>⚪ Paused</span>
+        <span>⚪ Institute Holiday</span>
       </div>
     </div>
   );

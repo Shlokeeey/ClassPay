@@ -1,6 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { getReminderInfo, reminderSort, outstandingAmount, formatCurrency } from "@/lib/utils";
-import { resolveExpiredPauses } from "@/lib/pause";
+import { getReminderInfo, reminderSort, netPendingAmount, formatCurrency } from "@/lib/utils";
 import StudentTable from "@/components/StudentTable";
 import WhatsAppButton from "@/components/WhatsAppButton";
 import Link from "next/link";
@@ -8,8 +7,6 @@ import Link from "next/link";
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
-  await resolveExpiredPauses(); // V3: auto-resume anyone whose pause window has passed
-
   const students = await prisma.student.findMany({
     orderBy: { createdAt: "desc" },
   });
@@ -21,7 +18,7 @@ export default async function HomePage() {
     return new Date(s.nextDueDate) < new Date();
   }).length;
   const totalPending = students.reduce(
-    (sum, s) => sum + outstandingAmount(s.nextDueDate, s.monthlyFee),
+    (sum, s) => sum + Math.max(0, netPendingAmount(s.nextDueDate, s.monthlyFee, s.balanceAdjustment)),
     0
   );
 
@@ -33,22 +30,22 @@ export default async function HomePage() {
 
   return (
     <div className="space-y-6">
-      <div className="grid grid-cols-4 gap-4">
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 sm:gap-4">
         <div className="card">
-          <p className="text-sm text-gray-500">Total Students</p>
-          <p className="text-2xl font-bold">{totalStudents}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Total Students</p>
+          <p className="text-xl sm:text-2xl font-bold">{totalStudents}</p>
         </div>
         <div className="card">
-          <p className="text-sm text-gray-500">Active</p>
-          <p className="text-2xl font-bold text-green-600">{activeCount}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Active</p>
+          <p className="text-xl sm:text-2xl font-bold text-green-600">{activeCount}</p>
         </div>
         <div className="card">
-          <p className="text-sm text-gray-500">Overdue</p>
-          <p className="text-2xl font-bold text-red-600">{overdueCount}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Overdue</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600">{overdueCount}</p>
         </div>
         <div className="card">
-          <p className="text-sm text-gray-500">Total Pending</p>
-          <p className="text-2xl font-bold text-red-600">{formatCurrency(totalPending)}</p>
+          <p className="text-xs sm:text-sm text-gray-500">Total Pending</p>
+          <p className="text-xl sm:text-2xl font-bold text-red-600">{formatCurrency(totalPending)}</p>
         </div>
       </div>
 
@@ -59,12 +56,12 @@ export default async function HomePage() {
             {reminderQueue.map(({ student, info }) => (
               <div
                 key={student.id}
-                className="flex items-center justify-between rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50"
+                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50"
               >
                 <Link href={`/students/${student.id}`} className="font-medium text-sm">
                   {student.name}
                 </Link>
-                <div className="flex items-center gap-2">
+                <div className="flex items-center gap-2 flex-wrap">
                   <span className={`rounded-full px-2 py-1 text-xs font-medium ${info!.color}`}>
                     {info!.label}
                   </span>
@@ -74,6 +71,7 @@ export default async function HomePage() {
                       contact: student.contact,
                       monthlyFee: student.monthlyFee,
                       nextDueDate: student.nextDueDate ? student.nextDueDate.toISOString() : null,
+                      balanceAdjustment: student.balanceAdjustment,
                     }}
                     type={info!.level}
                     small
@@ -93,8 +91,15 @@ export default async function HomePage() {
           monthlyFee: s.monthlyFee,
           status: s.status,
           nextDueDate: s.nextDueDate ? s.nextDueDate.toISOString() : null,
+          balanceAdjustment: s.balanceAdjustment,
         }))}
       />
+
+      <div className="text-center">
+        <a href="/api/export" className="text-sm text-gray-400 hover:text-gray-600 underline">
+          ⬇️ Export CSV
+        </a>
+      </div>
     </div>
   );
 }

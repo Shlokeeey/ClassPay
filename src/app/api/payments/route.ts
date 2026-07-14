@@ -20,6 +20,8 @@ export async function POST(req: Request) {
         ...result.payment,
         monthsCovered: result.monthsCovered,
         nextDueDate: result.nextDueDate,
+        leftoverAmount: result.leftoverAmount,
+        balanceAdjustment: result.balanceAdjustment,
       },
       { status: 201 }
     );

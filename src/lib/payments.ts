@@ -1,13 +1,17 @@
 import { prisma } from "@/lib/prisma";
-import { computeNextDueDate } from "@/lib/utils";
+import { computeScheduleDueDate } from "@/lib/utils";
 
-// Records one payment for one student and advances their schedule correctly
-// (anchored from their current next_due_date / joining_date, never from
-// paymentDate — see the arrears fix). Shared by /api/payments and /api/payments/bulk.
+// Records one payment and advances the student's schedule using ONLY their
+// joining date + cumulative months paid + institute holiday offset — never
+// the payment date, never anything else.
 //
-// If monthsCoveredOverride isn't given (the normal single-payment case), months
-// covered is calculated automatically from amountPaid ÷ monthlyFee, rounded to
-// the nearest whole month (minimum 1) — the admin just enters what was paid.
+// Months covered is calculated automatically from amountPaid ÷ monthlyFee,
+// rounded to the nearest whole month (minimum 1) unless overridden (bulk
+// payments pass an explicit month count). Any gap between what was actually
+// paid and what that rounded month count is worth does NOT disappear — it's
+// added to (or subtracted from) the student's persistent balanceAdjustment,
+// so a real shortfall or credit is never silently lost, even though the
+// schedule itself only moves in whole months.
 export async function recordPayment(
   studentId: number,
   amountPaid: number,
@@ -19,18 +23,27 @@ export async function recordPayment(
 
   const monthsCovered =
     monthsCoveredOverride ?? Math.max(1, Math.round(amountPaid / student.monthlyFee));
+  const leftoverAmount = amountPaid - monthsCovered * student.monthlyFee;
 
   const payment = await prisma.payment.create({
     data: { studentId, amountPaid, paymentDate, monthsCovered },
   });
 
-  const anchor = student.nextDueDate ?? student.joiningDate;
-  const nextDueDate = computeNextDueDate(anchor, monthsCovered);
+  const totalMonthsPaid = student.totalMonthsPaid + monthsCovered;
+  const nextDueDate = computeScheduleDueDate(
+    student.joiningDate,
+    totalMonthsPaid,
+    student.holidayOffsetDays
+  );
+
+  // leftoverAmount negative (shortfall) → balance goes UP (still owed).
+  // leftoverAmount positive (overpaid) → balance goes DOWN (credit).
+  const balanceAdjustment = student.balanceAdjustment - leftoverAmount;
 
   await prisma.student.update({
     where: { id: studentId },
-    data: { nextDueDate },
+    data: { totalMonthsPaid, nextDueDate, balanceAdjustment },
   });
 
-  return { payment, monthsCovered, nextDueDate };
+  return { payment, monthsCovered, nextDueDate, leftoverAmount, balanceAdjustment };
 }

@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { computeNextDueDate } from "@/lib/utils";
+import { computeScheduleDueDate } from "@/lib/utils";
 import { NextResponse } from "next/server";
 
 export async function GET() {
@@ -23,9 +23,10 @@ export async function POST(req: Request) {
       monthlyFee: Number(body.monthlyFee),
       notes: body.notes || null,
       status: "Active",
-      // First payment is due one month AFTER joining (a full month of tuition
-      // must complete before the first bill), not on the joining day itself.
-      nextDueDate: computeNextDueDate(new Date(body.joiningDate), 1),
+      totalMonthsPaid: 0,
+      holidayOffsetDays: 0,
+      // First payment is due one month AFTER joining — purely joining-date anchored.
+      nextDueDate: computeScheduleDueDate(new Date(body.joiningDate), 0, 0),
     },
   });
 

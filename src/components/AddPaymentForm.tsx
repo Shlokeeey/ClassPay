@@ -9,6 +9,7 @@ interface JustPaid {
   amountPaid: number;
   monthsCovered: number;
   nextDueDate: string;
+  leftoverAmount: number;
 }
 
 export default function AddPaymentForm({
@@ -57,6 +58,7 @@ export default function AddPaymentForm({
         amountPaid,
         monthsCovered: data.monthsCovered,
         nextDueDate: data.nextDueDate,
+        leftoverAmount: data.leftoverAmount,
       });
       router.refresh();
     }
@@ -68,6 +70,7 @@ export default function AddPaymentForm({
       amountPaid: justPaid.amountPaid,
       monthsCovered: justPaid.monthsCovered,
       nextDueDate: justPaid.nextDueDate,
+      leftoverAmount: justPaid.leftoverAmount,
     });
     const waLink = buildWaLink(studentContact, confirmationMessage);
 
@@ -78,6 +81,13 @@ export default function AddPaymentForm({
           {justPaid.monthsCovered} month{justPaid.monthsCovered > 1 ? "s" : ""}. Next due:{" "}
           {formatDate(justPaid.nextDueDate)}.
         </p>
+        {justPaid.leftoverAmount !== 0 && (
+          <p className="text-sm rounded-lg px-3 py-2 bg-amber-50 text-amber-800">
+            {justPaid.leftoverAmount > 0
+              ? `Extra ${formatCurrency(justPaid.leftoverAmount)} paid beyond the ${justPaid.monthsCovered} month(s) this was rounded to — worth keeping a note of, since it isn't tracked as a separate running credit.`
+              : `This was ${formatCurrency(Math.abs(justPaid.leftoverAmount))} short of a full ${justPaid.monthsCovered} month(s), but was still counted as a full ${justPaid.monthsCovered} month(s) covered.`}
+          </p>
+        )}
         <a
           href={waLink}
           target="_blank"
@@ -109,7 +119,7 @@ export default function AddPaymentForm({
         <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
           This student's schedule shows ~{overdueMonths} month{overdueMonths > 1 ? "s" : ""} overdue
           (next due was {formatDate(nextDueDate)}). Just enter what they actually paid — the app
-          works out how many months it covers.
+          works out how many months it covers, and will show any extra or shortfall.
         </p>
       )}
 
@@ -119,7 +129,8 @@ export default function AddPaymentForm({
         {monthlyFee ? (
           <p className="text-xs text-gray-400 mt-1">
             Monthly fee is {formatCurrency(monthlyFee)} — months covered is calculated
-            automatically from the amount you enter (rounded to the nearest month).
+            automatically from the amount you enter (rounded to the nearest month). If you pay
+            more than what's owed, it's treated as advance payment for future months.
           </p>
         ) : null}
       </div>

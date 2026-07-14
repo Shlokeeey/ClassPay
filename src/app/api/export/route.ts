@@ -1,5 +1,5 @@
 import { prisma } from "@/lib/prisma";
-import { formatDate, outstandingAmount } from "@/lib/utils";
+import { formatDate, netPendingAmount } from "@/lib/utils";
 import { NextResponse } from "next/server";
 
 function csvEscape(value: string | number): string {
@@ -30,7 +30,7 @@ export async function GET() {
 
   const rows = students.map((s) => {
     const totalPaid = s.payments.reduce((sum, p) => sum + p.amountPaid, 0);
-    const pending = outstandingAmount(s.nextDueDate, s.monthlyFee);
+    const pending = netPendingAmount(s.nextDueDate, s.monthlyFee, s.balanceAdjustment);
     return [
       s.name,
       s.contact,

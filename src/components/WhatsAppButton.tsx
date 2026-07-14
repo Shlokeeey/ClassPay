@@ -8,7 +8,7 @@ export default function WhatsAppButton({
   small = false,
   customMessage,
 }: {
-  student: { name: string; contact: string; monthlyFee: number; nextDueDate: string | null };
+  student: { name: string; contact: string; monthlyFee: number; nextDueDate: string | null; balanceAdjustment?: number };
   type: ReminderTemplateType;
   small?: boolean;
   customMessage?: string; // overrides the template — used for the post-payment confirmation

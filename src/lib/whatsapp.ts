@@ -1,4 +1,4 @@
-import { formatCurrency, formatDate, outstandingAmount } from "@/lib/utils";
+import { formatCurrency, formatDate, netPendingAmount } from "@/lib/utils";
 
 export type ReminderTemplateType = "upcoming" | "overdue" | "escalate" | "confirmation";
 
@@ -7,6 +7,7 @@ interface StudentLike {
   contact: string;
   monthlyFee: number;
   nextDueDate: Date | string | null;
+  balanceAdjustment?: number;
 }
 
 // Turns a contact string into a wa.me-ready number. Assumes India (+91) if a
@@ -32,7 +33,7 @@ function owedPeriodLabel(nextDueDate: Date | string | null | undefined): string 
 
 // Reminder messages — Hinglish, matching the phrasing you asked for.
 export function buildReminderMessage(student: StudentLike, type: ReminderTemplateType): string {
-  const owed = outstandingAmount(student.nextDueDate, student.monthlyFee);
+  const owed = netPendingAmount(student.nextDueDate, student.monthlyFee, student.balanceAdjustment ?? 0);
   const owedAmount = formatCurrency(owed > 0 ? owed : student.monthlyFee);
   const period = owedPeriodLabel(student.nextDueDate);
 
@@ -53,12 +54,21 @@ export function buildConfirmationMessage(params: {
   amountPaid: number;
   monthsCovered: number;
   nextDueDate: Date | string | null;
+  leftoverAmount?: number;
 }): string {
   const amt = formatCurrency(params.amountPaid);
   const due = formatDate(params.nextDueDate);
   const monthsLabel =
     params.monthsCovered > 1 ? `${params.monthsCovered} months ki` : `1 month ki`;
-  return `Namaste bhabhi, vo ${params.name} ki ${amt} fees mil gayi hai, dhanyavaad! Ye payment ${monthsLabel} fees cover karti hai. Agli fees ka due date ${due} hai.`;
+
+  let leftoverNote = "";
+  if (params.leftoverAmount && params.leftoverAmount < 0) {
+    leftoverNote = ` Isme se ${formatCurrency(Math.abs(params.leftoverAmount))} abhi bhi baaki hai, agli baar saath mein jod dijiyega.`;
+  } else if (params.leftoverAmount && params.leftoverAmount > 0) {
+    leftoverNote = ` Aapne ${formatCurrency(params.leftoverAmount)} zyada diye hain, ye agli fees mein adjust ho jayenge.`;
+  }
+
+  return `Namaste bhabhi, vo ${params.name} ki ${amt} fees mil gayi hai, dhanyavaad! Ye payment ${monthsLabel} fees cover karti hai.${leftoverNote} Agli fees ka due date ${due} hai.`;
 }
 
 export function buildWaLink(contact: string, message: string): string {

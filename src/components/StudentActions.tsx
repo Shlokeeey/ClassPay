@@ -33,7 +33,7 @@ export default function StudentActions({
 
   return (
     <div className="flex flex-wrap gap-2">
-      {currentStatus !== "Active" && currentStatus !== "Paused" && (
+      {currentStatus !== "Active" && (
         <button className="btn-secondary" disabled={loading} onClick={() => updateStatus("Active")}>
           Mark Active
         </button>

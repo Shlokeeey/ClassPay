@@ -1,4 +1,5 @@
 import { prisma } from "@/lib/prisma";
+import { computeScheduleDueDate } from "@/lib/utils";
 import { NextResponse } from "next/server";
 
 export async function GET(_req: Request, { params }: { params: { id: string } }) {
@@ -12,6 +13,11 @@ export async function GET(_req: Request, { params }: { params: { id: string } })
 
 export async function PATCH(req: Request, { params }: { params: { id: string } }) {
   const body = await req.json();
+  const studentId = Number(params.id);
+
+  const current = await prisma.student.findUnique({ where: { id: studentId } });
+  if (!current) return NextResponse.json({ error: "Not found" }, { status: 404 });
+
   const data: Record<string, unknown> = {};
 
   if (body.name !== undefined) data.name = body.name;
@@ -21,10 +27,24 @@ export async function PATCH(req: Request, { params }: { params: { id: string } }
   if (body.status !== undefined) data.status = body.status;
   if (body.notes !== undefined) data.notes = body.notes;
   if (body.joiningDate !== undefined) data.joiningDate = new Date(body.joiningDate);
-  if (body.nextDueDate !== undefined) data.nextDueDate = new Date(body.nextDueDate);
+  if (body.totalMonthsPaid !== undefined) data.totalMonthsPaid = Number(body.totalMonthsPaid);
+  if (body.balanceAdjustment !== undefined) data.balanceAdjustment = Number(body.balanceAdjustment);
+
+  // nextDueDate is never set directly — it's ALWAYS derived from joining date +
+  // months paid + holiday offset, so it recomputes whenever any of those change.
+  const joiningDate = data.joiningDate ?? current.joiningDate;
+  const totalMonthsPaid =
+    data.totalMonthsPaid !== undefined ? (data.totalMonthsPaid as number) : current.totalMonthsPaid;
+  if (data.joiningDate !== undefined || data.totalMonthsPaid !== undefined) {
+    data.nextDueDate = computeScheduleDueDate(
+      joiningDate as Date,
+      totalMonthsPaid,
+      current.holidayOffsetDays
+    );
+  }
 
   const student = await prisma.student.update({
-    where: { id: Number(params.id) },
+    where: { id: studentId },
     data,
   });
 

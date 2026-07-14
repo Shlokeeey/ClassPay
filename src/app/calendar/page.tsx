@@ -1,15 +1,11 @@
 import { prisma } from "@/lib/prisma";
-import { resolveExpiredPauses } from "@/lib/pause";
 import GlobalCalendar from "@/components/GlobalCalendar";
 
 export const dynamic = "force-dynamic";
 
 export default async function CalendarPage() {
-  await resolveExpiredPauses();
-
-  const students = await prisma.student.findMany({
-    include: { pauses: { where: { resumed: false } } },
-  });
+  const students = await prisma.student.findMany();
+  const holidays = await prisma.holiday.findMany();
 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
@@ -23,19 +19,16 @@ export default async function CalendarPage() {
       overdue: new Date(s.nextDueDate!) < today,
     }));
 
-  const pauseEntries = students.flatMap((s) =>
-    s.pauses.map((p) => ({
-      studentId: s.id,
-      name: s.name,
-      start: p.startDate.toISOString(),
-      end: p.endDate.toISOString(),
-    }))
-  );
+  const holidayRanges = holidays.map((h) => ({
+    start: h.startDate.toISOString(),
+    end: h.endDate.toISOString(),
+    note: h.note,
+  }));
 
   return (
     <div className="space-y-4">
       <h1 className="text-lg font-bold">Calendar — All Students</h1>
-      <GlobalCalendar dueEntries={dueEntries} pauseEntries={pauseEntries} />
+      <GlobalCalendar dueEntries={dueEntries} holidays={holidayRanges} />
     </div>
   );
 }

@@ -3,33 +3,25 @@ generator client {
 }
 
 datasource db {
-  provider = "sqlite"
+  provider = "postgresql"
   url      = env("DATABASE_URL")
 }
 
 model Student {
-  id          Int       @id @default(autoincrement())
-  name        String
-  contact     String
-  email       String?
-  joiningDate DateTime
-  monthlyFee  Int
-  status      String    @default("Active") // Active | Inactive | Paused
-  nextDueDate DateTime?
-  notes       String?
-  createdAt   DateTime  @default(now())
-  payments    Payment[]
-  pauses      Pause[]
-}
-
-model Pause {
-  id        Int      @id @default(autoincrement())
-  studentId Int
-  student   Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
-  startDate DateTime
-  endDate   DateTime
-  resumed   Boolean  @default(false) // flips true once auto/manual resume logic has run, so it only shifts the due date once
-  createdAt DateTime @default(now())
+  id                Int       @id @default(autoincrement())
+  name              String
+  contact           String
+  email             String?
+  joiningDate       DateTime
+  monthlyFee        Int
+  status            String    @default("Active") // Active | Inactive
+  totalMonthsPaid   Int       @default(0) // cumulative months paid for, ever
+  holidayOffsetDays Int       @default(0) // cumulative days added by institute-wide holidays
+  balanceAdjustment Int       @default(0) // running total: positive = still owed beyond the schedule (shortfalls), negative = credit (overpaid)
+  nextDueDate       DateTime?
+  notes             String?
+  createdAt         DateTime  @default(now())
+  payments          Payment[]
 }
 
 model Payment {
@@ -40,4 +32,15 @@ model Payment {
   paymentDate   DateTime
   monthsCovered Int      @default(1)
   createdAt     DateTime @default(now())
+}
+
+// Institute-wide holiday — applies to ALL active students at once when created.
+// This is the ONLY thing allowed to push a due date off the joining-date cycle.
+model Holiday {
+  id        Int      @id @default(autoincrement())
+  startDate DateTime
+  endDate   DateTime
+  daysCount Int
+  note      String?
+  createdAt DateTime @default(now())
 }
