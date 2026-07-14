@@ -14,10 +14,10 @@ model Student {
   email             String?
   joiningDate       DateTime
   monthlyFee        Int
-  status            String    @default("Active") // Active | Inactive
-  totalMonthsPaid   Int       @default(0) // cumulative months paid for, ever
-  holidayOffsetDays Int       @default(0) // cumulative days added by institute-wide holidays
-  balanceAdjustment Int       @default(0) // running total: positive = still owed beyond the schedule (shortfalls), negative = credit (overpaid)
+  status            String    @default("Active")
+  totalMonthsPaid   Int       @default(0)
+  holidayOffsetDays Int       @default(0)
+  balanceAdjustment Int       @default(0)
   nextDueDate       DateTime?
   notes             String?
   createdAt         DateTime  @default(now())
@@ -27,15 +27,13 @@ model Student {
 model Payment {
   id            Int      @id @default(autoincrement())
   studentId     Int
-  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
   amountPaid    Int
   paymentDate   DateTime
   monthsCovered Int      @default(1)
   createdAt     DateTime @default(now())
+  student       Student  @relation(fields: [studentId], references: [id], onDelete: Cascade)
 }
 
-// Institute-wide holiday — applies to ALL active students at once when created.
-// This is the ONLY thing allowed to push a due date off the joining-date cycle.
 model Holiday {
   id        Int      @id @default(autoincrement())
   startDate DateTime
