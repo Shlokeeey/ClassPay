@@ -25,7 +25,8 @@ export async function POST(req: Request) {
       status: "Active",
       totalMonthsPaid: 0,
       holidayOffsetDays: 0,
-      // First payment is due one month AFTER joining — purely joining-date anchored.
+      // Pay-upfront model: the very first payment is due ON the joining date
+      // itself — the month is taught only after it's paid for, not before.
       nextDueDate: computeScheduleDueDate(new Date(body.joiningDate), 0, 0),
     },
   });

@@ -1,6 +1,10 @@
 import { formatCurrency, formatDate, netPendingAmount } from "@/lib/utils";
 
-export type ReminderTemplateType = "upcoming" | "overdue" | "escalate" | "confirmation";
+export type ReminderTemplateType =
+  | "upcoming"
+  | "overdue"
+  | "escalate"
+  | "confirmation";
 
 interface StudentLike {
   name: string;
@@ -10,8 +14,8 @@ interface StudentLike {
   balanceAdjustment?: number;
 }
 
-// Turns a contact string into a wa.me-ready number. Assumes India (+91) if a
-// bare 10-digit number is given — adjust here if you're outside India.
+// Turns a contact string into a wa.me-ready number.
+// Assumes India (+91) if a bare 10-digit number is given.
 export function normalizePhone(contact: string): string {
   const digits = contact.replace(/\D/g, "");
   if (digits.length === 10) return `91${digits}`;
@@ -23,32 +27,55 @@ function monthName(date: Date | string | null | undefined): string {
   return new Date(date).toLocaleDateString("en-US", { month: "long" });
 }
 
-// e.g. "July" if the backlog is within one month, or "July to September" if it spans several
+// Returns "July" if only one month is pending,
+// or "July to September" if multiple months are pending.
 function owedPeriodLabel(nextDueDate: Date | string | null | undefined): string {
   const from = monthName(nextDueDate);
   const to = monthName(new Date());
+
   if (!from) return to;
   return from === to ? from : `${from} to ${to}`;
 }
 
-// Reminder messages — Hinglish, matching the phrasing you asked for.
-export function buildReminderMessage(student: StudentLike, type: ReminderTemplateType): string {
-  const owed = netPendingAmount(student.nextDueDate, student.monthlyFee, student.balanceAdjustment ?? 0);
-  const owedAmount = formatCurrency(owed > 0 ? owed : student.monthlyFee);
+// --------------------
+// Reminder Messages
+// --------------------
+export function buildReminderMessage(
+  student: StudentLike,
+  type: ReminderTemplateType
+): string {
+  const owed = netPendingAmount(
+    student.nextDueDate,
+    student.monthlyFee,
+    student.balanceAdjustment ?? 0
+  );
+
+  const owedAmount = formatCurrency(
+    owed > 0 ? owed : student.monthlyFee
+  );
+
   const period = owedPeriodLabel(student.nextDueDate);
 
   switch (type) {
     case "upcoming":
-      return `Namaste bhabhi, vo ${student.name} ki ${formatCurrency(student.monthlyFee)} fees ${monthName(student.nextDueDate)} mahine mein due hai. Aap please time se payment karwa dijiyega. Dhanyavaad!`;
+      return `Hello Bhabhi, just a reminder that ${student.name}'s ${monthName(
+        student.nextDueDate
+      )} fee of ${formatCurrency(
+        student.monthlyFee
+      )} is due soon. Kindly make the payment before the beginning of the month. Thank you!`;
+
     case "overdue":
     case "escalate":
-      return `Namaste bhabhi, vo ${student.name} ki ${owedAmount} fees bachi hui hai from ${period}. Aap please iska payment jaldi karwa sakte hai?`;
+      return `Hello Bhabhi, this is a gentle reminder that ${student.name}'s pending fee of ${owedAmount} (${period}) has not yet been received. Kindly make the payment at your earliest convenience. Thank you!`;
+
     case "confirmation":
-      return `Namaste bhabhi, ${student.name} ki fees mil gayi hai, dhanyavaad!`;
+      return `Hello Bhabhi, I have received ${student.name}'s fee. Thank you!`;
   }
 }
 
-// Sent right after a payment is recorded — confirms what was paid and when the next one is due.
+// --------------------
+// Payment Confirmation
+// --------------------
 export function buildConfirmationMessage(params: {
   name: string;
   amountPaid: number;
@@ -58,19 +85,30 @@ export function buildConfirmationMessage(params: {
 }): string {
   const amt = formatCurrency(params.amountPaid);
   const due = formatDate(params.nextDueDate);
+
   const monthsLabel =
-    params.monthsCovered > 1 ? `${params.monthsCovered} months ki` : `1 month ki`;
+    params.monthsCovered > 1
+      ? `${params.monthsCovered} months'`
+      : "1 month's";
 
   let leftoverNote = "";
+
   if (params.leftoverAmount && params.leftoverAmount < 0) {
-    leftoverNote = ` Isme se ${formatCurrency(Math.abs(params.leftoverAmount))} abhi bhi baaki hai, agli baar saath mein jod dijiyega.`;
+    leftoverNote = ` There is still an outstanding balance of ${formatCurrency(
+      Math.abs(params.leftoverAmount)
+    )}, which can be added to your next payment.`;
   } else if (params.leftoverAmount && params.leftoverAmount > 0) {
-    leftoverNote = ` Aapne ${formatCurrency(params.leftoverAmount)} zyada diye hain, ye agli fees mein adjust ho jayenge.`;
+    leftoverNote = ` An extra payment of ${formatCurrency(
+      params.leftoverAmount
+    )} has been received and will be adjusted towards the next month's fee.`;
   }
 
-  return `Namaste bhabhi, vo ${params.name} ki ${amt} fees mil gayi hai, dhanyavaad! Ye payment ${monthsLabel} fees cover karti hai.${leftoverNote} Agli fees ka due date ${due} hai.`;
+  return `Hello Bhabhi, I have received ${params.name}'s payment of ${amt}. Thank you! This payment covers ${monthsLabel} fee.${leftoverNote} The next fee is due on ${due}.`;
 }
 
+// --------------------
+// WhatsApp Link Builder
+// --------------------
 export function buildWaLink(contact: string, message: string): string {
   const phone = normalizePhone(contact);
   return `https://wa.me/${phone}?text=${encodeURIComponent(message)}`;

@@ -2,6 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { getReminderInfo, reminderSort, netPendingAmount, formatCurrency } from "@/lib/utils";
 import StudentTable from "@/components/StudentTable";
 import WhatsAppButton from "@/components/WhatsAppButton";
+import RecalculateButton from "@/components/RecalculateButton";
 import Link from "next/link";
 
 export const dynamic = "force-dynamic";
@@ -95,10 +96,11 @@ export default async function HomePage() {
         }))}
       />
 
-      <div className="text-center">
+      <div className="flex flex-col items-center gap-2">
         <a href="/api/export" className="text-sm text-gray-400 hover:text-gray-600 underline">
           ⬇️ Export CSV
         </a>
+        <RecalculateButton />
       </div>
     </div>
   );

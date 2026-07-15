@@ -24,12 +24,15 @@ export function addDaysToDate(date: Date | string, days: number): Date {
 }
 
 // The one function that decides a student's due date, anywhere in the app.
+// Pay-upfront model: month N's fee is due at the START of month N (before
+// that month is taught), not after it completes. So totalMonthsPaid=0 means
+// the very first payment is due on the joining date itself.
 export function computeScheduleDueDate(
   joiningDate: Date | string,
   totalMonthsPaid: number,
   holidayOffsetDays: number
 ): Date {
-  const base = addMonthsClamped(joiningDate, totalMonthsPaid + 1);
+  const base = addMonthsClamped(joiningDate, totalMonthsPaid);
   return addDaysToDate(base, holidayOffsetDays);
 }
 

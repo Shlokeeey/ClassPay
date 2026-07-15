@@ -29,6 +29,13 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
   const [bulkOpen, setBulkOpen] = useState(false);
   const [months, setMonths] = useState(1);
   const [loading, setLoading] = useState(false);
+  const [query, setQuery] = useState("");
+
+  const filteredStudents = students.filter((s) => {
+    const q = query.trim().toLowerCase();
+    if (!q) return true;
+    return s.name.toLowerCase().includes(q) || s.contact.toLowerCase().includes(q);
+  });
 
   function toggle(id: number) {
     setSelected((prev) => {
@@ -130,9 +137,25 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
         </div>
       )}
 
+      {students.length > 0 && (
+        <input
+          className="input"
+          type="text"
+          placeholder="🔍 Search by name or contact..."
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+        />
+      )}
+
+      {students.length > 0 && filteredStudents.length === 0 && (
+        <div className="card text-center text-gray-400 py-6 text-sm">
+          No students match "{query}".
+        </div>
+      )}
+
       {/* Mobile: stacked cards */}
       <div className="sm:hidden space-y-2">
-        {students.map((s) => {
+        {filteredStudents.map((s) => {
           const badge = dueBadge(s.nextDueDate);
           const reminderInfo = getReminderInfo(s);
           return (
@@ -183,7 +206,7 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
       </div>
 
       {/* Desktop: table */}
-      {students.length > 0 && (
+      {filteredStudents.length > 0 && (
         <div className="hidden sm:block card p-0 overflow-hidden">
           <table className="w-full text-sm">
             <thead className="bg-gray-50 text-gray-500 text-left">
@@ -198,7 +221,7 @@ export default function StudentTable({ students }: { students: StudentRow[] }) {
               </tr>
             </thead>
             <tbody>
-              {students.map((s) => {
+              {filteredStudents.map((s) => {
                 const badge = dueBadge(s.nextDueDate);
                 const reminderInfo = getReminderInfo(s);
                 return (
