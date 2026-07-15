@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import IntroScreen from "./IntroScreen";
 
 export default function AppLoader({
@@ -8,14 +8,28 @@ export default function AppLoader({
 }: {
   children: React.ReactNode;
 }) {
-  const [showIntro, setShowIntro] = useState(true);
+  const [showIntro, setShowIntro] = useState(false);
+  const [ready, setReady] = useState(false);
+
+  useEffect(() => {
+    const alreadyPlayed = sessionStorage.getItem("introPlayed");
+
+    if (!alreadyPlayed) {
+      setShowIntro(true);
+    }
+
+    setReady(true);
+  }, []);
+
+  const handleFinish = () => {
+    sessionStorage.setItem("introPlayed", "true");
+    setShowIntro(false);
+  };
+
+  if (!ready) return null;
 
   if (showIntro) {
-    return (
-      <IntroScreen
-        onFinish={() => setShowIntro(false)}
-      />
-    );
+    return <IntroScreen onFinish={handleFinish} />;
   }
 
   return <>{children}</>;

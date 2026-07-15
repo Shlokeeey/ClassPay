@@ -1,9 +1,8 @@
 import { prisma } from "@/lib/prisma";
 import { getReminderInfo, reminderSort, netPendingAmount, formatCurrency } from "@/lib/utils";
 import StudentTable from "@/components/StudentTable";
-import WhatsAppButton from "@/components/WhatsAppButton";
+import NeedsAttentionBox from "@/components/NeedsAttentionBox";
 import RecalculateButton from "@/components/RecalculateButton";
-import Link from "next/link";
 
 export const dynamic = "force-dynamic";
 
@@ -50,39 +49,19 @@ export default async function HomePage() {
         </div>
       </div>
 
-      {reminderQueue.length > 0 && (
-        <div className="card">
-          <h2 className="font-medium mb-3">⚠️ Needs Attention</h2>
-          <div className="space-y-2">
-            {reminderQueue.map(({ student, info }) => (
-              <div
-                key={student.id}
-                className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 rounded-lg border border-gray-100 px-3 py-2 hover:bg-gray-50"
-              >
-                <Link href={`/students/${student.id}`} className="font-medium text-sm">
-                  {student.name}
-                </Link>
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className={`rounded-full px-2 py-1 text-xs font-medium ${info!.color}`}>
-                    {info!.label}
-                  </span>
-                  <WhatsAppButton
-                    student={{
-                      name: student.name,
-                      contact: student.contact,
-                      monthlyFee: student.monthlyFee,
-                      nextDueDate: student.nextDueDate ? student.nextDueDate.toISOString() : null,
-                      balanceAdjustment: student.balanceAdjustment,
-                    }}
-                    type={info!.level}
-                    small
-                  />
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <NeedsAttentionBox
+        entries={reminderQueue.map(({ student, info }) => ({
+          studentId: student.id,
+          name: student.name,
+          contact: student.contact,
+          monthlyFee: student.monthlyFee,
+          nextDueDate: student.nextDueDate ? student.nextDueDate.toISOString() : null,
+          balanceAdjustment: student.balanceAdjustment,
+          label: info!.label,
+          color: info!.color,
+          level: info!.level,
+        }))}
+      />
 
       <StudentTable
         students={students.map((s) => ({
